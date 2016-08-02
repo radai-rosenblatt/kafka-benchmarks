@@ -9,7 +9,7 @@ import org.openjdk.jmh.annotations._
 @BenchmarkMode(Array(Mode.Throughput))
 class MetricBoundArrayBlockingQueueBenchmark {
   //shared global state
-  val queue: MetricBoundArrayBlockingQueue[Payload] = new MetricBoundArrayBlockingQueue(
+  val queue: MetricBoundedArrayBlockingQueue[Payload] = new MetricBoundedArrayBlockingQueue(
     10000,
     new Metric[Payload] {
       override def measure(instance: Payload): Long = 1
@@ -19,11 +19,6 @@ class MetricBoundArrayBlockingQueueBenchmark {
   @Setup(Level.Iteration)
   def setup(): Unit = {
     queue.clear()
-  }
-
-  @Benchmark
-  def testBaseline(): Unit = {
-    //nop
   }
 
   @Benchmark

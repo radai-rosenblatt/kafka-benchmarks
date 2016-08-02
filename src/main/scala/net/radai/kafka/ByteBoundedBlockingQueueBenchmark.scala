@@ -38,7 +38,7 @@ import net.radai.kafka.ByteBoundedBlockingQueueBenchmark.Payload
 import org.openjdk.jmh.annotations._
 
 @State(Scope.Benchmark)
-@BenchmarkMode(Array(Mode.Throughput))
+@BenchmarkMode(Array(Mode.Throughput, Mode.AverageTime))
 class ByteBoundedBlockingQueueBenchmark {
 
   //shared global state
@@ -47,11 +47,6 @@ class ByteBoundedBlockingQueueBenchmark {
   @Setup(Level.Iteration)
   def setup(): Unit = {
     queue.clear()
-  }
-
-  @Benchmark
-  def testBaseline(): Unit = {
-    //nop
   }
 
   @Benchmark

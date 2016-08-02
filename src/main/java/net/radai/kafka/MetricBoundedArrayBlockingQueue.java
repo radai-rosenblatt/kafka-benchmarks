@@ -15,10 +15,15 @@ import java.util.concurrent.locks.ReentrantLock;
 
 
 /**
- * this is an ArrayBlockingQueue with an added metric limit
+ * this is a copy-paste of ArrayBlockingQueue with an added metric limit.
+ * the original class is not easily extendable and composition, while much
+ * more elegant, is also much slower.
+ * to avoid starvation, the class allows exceeding metricBound by a single
+ * element (regardless of that element's measurement) otherwise "large"
+ * elements may be starved out by a stream of "smaller" ones.
  * @param <E>
  */
-public class MetricBoundArrayBlockingQueue<E> extends AbstractQueue<E> implements BlockingQueue<E>, Serializable {
+public class MetricBoundedArrayBlockingQueue<E> extends AbstractQueue<E> implements BlockingQueue<E>, Serializable {
   private static final long serialVersionUID = 1L;
 
   /** the metric with which we "measure" elements */
@@ -27,6 +32,7 @@ public class MetricBoundArrayBlockingQueue<E> extends AbstractQueue<E> implement
   /** The queued items */
   final Object[] items;
 
+  /** The bound on the sum of measurements for all queued elements */
   final long metricBound;
 
   /** items index for next take, poll, peek or remove */
@@ -182,7 +188,7 @@ public class MetricBoundArrayBlockingQueue<E> extends AbstractQueue<E> implement
    * @param capacity the capacity of this queue
    * @throws IllegalArgumentException if {@code capacity < 1}
    */
-  public MetricBoundArrayBlockingQueue(int capacity, Metric<E> metric, long metricBound) {
+  public MetricBoundedArrayBlockingQueue(int capacity, Metric<E> metric, long metricBound) {
     this(capacity, metric, metricBound, false);
   }
 
@@ -196,7 +202,7 @@ public class MetricBoundArrayBlockingQueue<E> extends AbstractQueue<E> implement
    *        if {@code false} the access order is unspecified.
    * @throws IllegalArgumentException if {@code capacity < 1}
    */
-  public MetricBoundArrayBlockingQueue(int capacity, Metric<E> metric, long metricBound, boolean fair) {
+  public MetricBoundedArrayBlockingQueue(int capacity, Metric<E> metric, long metricBound, boolean fair) {
     if (capacity <= 0)
       throw new IllegalArgumentException();
     this.items = new Object[capacity];
@@ -234,11 +240,10 @@ public class MetricBoundArrayBlockingQueue<E> extends AbstractQueue<E> implement
   public boolean offer(E e) {
     checkNotNull(e);
     long measurement = metric.measure(e);
-    long metricThreshhold = metricBound - measurement;
     final ReentrantLock lock = this.lock;
     lock.lock();
     try {
-      if (count == items.length || metricSize > metricThreshhold) {
+      if (count == items.length || metricSize >= metricBound) {
         return false; //out of slots or metric
       } else {
         enqueue(e, measurement);
@@ -259,11 +264,10 @@ public class MetricBoundArrayBlockingQueue<E> extends AbstractQueue<E> implement
   public void put(E e) throws InterruptedException {
     checkNotNull(e);
     long measurement = metric.measure(e);
-    long metricThreshhold = metricBound - measurement;
     final ReentrantLock lock = this.lock;
     lock.lockInterruptibly();
     try {
-      while (count == items.length || metricSize > metricThreshhold) {
+      while (count == items.length || metricSize >= metricBound) {
         notFull.await();
       }
       enqueue(e, measurement);
@@ -286,11 +290,10 @@ public class MetricBoundArrayBlockingQueue<E> extends AbstractQueue<E> implement
     checkNotNull(e);
     long nanos = unit.toNanos(timeout);
     long measurement = metric.measure(e);
-    long metricThreshhold = metricBound - measurement;
     final ReentrantLock lock = this.lock;
     lock.lockInterruptibly();
     try {
-      while (count == items.length || metricSize > metricThreshhold) {
+      while (count == items.length || metricSize >= metricBound) {
         if (nanos <= 0)
           return false;
         nanos = notFull.awaitNanos(nanos);
@@ -997,7 +1000,7 @@ public class MetricBoundArrayBlockingQueue<E> extends AbstractQueue<E> implement
     Itr() {
       // assert lock.getHoldCount() == 0;
       lastRet = NONE;
-      final ReentrantLock lock = MetricBoundArrayBlockingQueue.this.lock;
+      final ReentrantLock lock = MetricBoundedArrayBlockingQueue.this.lock;
       lock.lock();
       try {
         if (count == 0) {
@@ -1006,7 +1009,7 @@ public class MetricBoundArrayBlockingQueue<E> extends AbstractQueue<E> implement
           nextIndex = NONE;
           prevTakeIndex = DETACHED;
         } else {
-          final int takeIndex = MetricBoundArrayBlockingQueue.this.takeIndex;
+          final int takeIndex = MetricBoundedArrayBlockingQueue.this.takeIndex;
           prevTakeIndex = takeIndex;
           nextItem = itemAt(nextIndex = takeIndex);
           cursor = incCursor(takeIndex);
@@ -1066,7 +1069,7 @@ public class MetricBoundArrayBlockingQueue<E> extends AbstractQueue<E> implement
       // assert count > 0;
 
       final int cycles = itrs.cycles;
-      final int takeIndex = MetricBoundArrayBlockingQueue.this.takeIndex;
+      final int takeIndex = MetricBoundedArrayBlockingQueue.this.takeIndex;
       final int prevCycles = this.prevCycles;
       final int prevTakeIndex = this.prevTakeIndex;
 
@@ -1131,7 +1134,7 @@ public class MetricBoundArrayBlockingQueue<E> extends AbstractQueue<E> implement
     }
 
     private void noNext() {
-      final ReentrantLock lock = MetricBoundArrayBlockingQueue.this.lock;
+      final ReentrantLock lock = MetricBoundedArrayBlockingQueue.this.lock;
       lock.lock();
       try {
         // assert cursor == NONE;
@@ -1157,7 +1160,7 @@ public class MetricBoundArrayBlockingQueue<E> extends AbstractQueue<E> implement
       final E x = nextItem;
       if (x == null)
         throw new NoSuchElementException();
-      final ReentrantLock lock = MetricBoundArrayBlockingQueue.this.lock;
+      final ReentrantLock lock = MetricBoundedArrayBlockingQueue.this.lock;
       lock.lock();
       try {
         if (!isDetached())
@@ -1182,7 +1185,7 @@ public class MetricBoundArrayBlockingQueue<E> extends AbstractQueue<E> implement
 
     public void remove() {
       // assert lock.getHoldCount() == 0;
-      final ReentrantLock lock = MetricBoundArrayBlockingQueue.this.lock;
+      final ReentrantLock lock = MetricBoundedArrayBlockingQueue.this.lock;
       lock.lock();
       try {
         if (!isDetached())
@@ -1254,7 +1257,7 @@ public class MetricBoundArrayBlockingQueue<E> extends AbstractQueue<E> implement
         return true;
 
       final int cycles = itrs.cycles;
-      final int takeIndex = MetricBoundArrayBlockingQueue.this.takeIndex;
+      final int takeIndex = MetricBoundedArrayBlockingQueue.this.takeIndex;
       final int prevCycles = this.prevCycles;
       final int prevTakeIndex = this.prevTakeIndex;
       final int len = items.length;

@@ -8,7 +8,7 @@ import org.openjdk.jmh.annotations._
 
 
 @State(Scope.Benchmark)
-@BenchmarkMode(Array(Mode.Throughput))
+@BenchmarkMode(Array(Mode.Throughput, Mode.AverageTime))
 class ByteBoundedBlockingQueue2Benchmark {
 
   //shared global state
@@ -17,11 +17,6 @@ class ByteBoundedBlockingQueue2Benchmark {
   @Setup(Level.Iteration)
   def setup(): Unit = {
     queue.clear()
-  }
-
-  @Benchmark
-  def testBaseline(): Unit = {
-    //nop
   }
 
   @Benchmark

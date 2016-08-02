@@ -23,7 +23,7 @@ import java.util.concurrent.{ArrayBlockingQueue, TimeUnit}
 import kafka.utils.SystemTime
 
 /**
- * A blocking queue that have size limits on both number of elements and number of bytes.
+ * experiment with ByteBoundedBlockingQueue on top of ArrayBlockingQueue instead of linked.
  */
 class ByteBoundedBlockingQueue2[E](val queueNumMessageCapacity: Int, val queueByteCapacity: Int, sizeFunction: Option[(E) => Int])
     extends Iterable[E] {

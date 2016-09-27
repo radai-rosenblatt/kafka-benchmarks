@@ -1,6 +1,6 @@
 package net.radai.kafka
 
-import java.util.concurrent.{ArrayBlockingQueue, TimeUnit}
+import java.util.concurrent.ArrayBlockingQueue
 
 import net.radai.kafka.BaselineBenchmark.Payload
 import org.openjdk.jmh.annotations._

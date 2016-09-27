@@ -2,7 +2,6 @@ package net.radai.kafka
 
 import java.util.concurrent.{ArrayBlockingQueue, TimeUnit}
 
-import kafka.utils.ByteBoundedBlockingQueue
 import net.radai.kafka.ArrayBlockingQueueBenchmark.Payload
 import org.openjdk.jmh.annotations._
 
